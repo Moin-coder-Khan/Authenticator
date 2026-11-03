@@ -104,3 +104,28 @@ def get_current_user(
     )
 
     return user
+
+
+def verify_refresh_token(token: str) -> int:
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+
+        user_id = int(payload.get("sub"))
+
+        return user_id
+
+    except (jwt.InvalidTokenError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )

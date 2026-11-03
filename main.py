@@ -7,7 +7,7 @@ import schemas
 
 from database import engine, Base, get_db
 from security import hash_password, verify_password
-from auth import create_access_token,get_current_user,create_refresh_token
+from auth import create_access_token,get_current_user,create_refresh_token,verify_refresh_token
 
 app = FastAPI(
     title="JWT Authentication API"
@@ -103,3 +103,40 @@ def read_users_me(
     current_user: models.User = Depends(get_current_user)
 ):
     return current_user
+
+
+@app.post("/auth/refresh", response_model=schemas.Token)
+def refresh_access_token(
+    request: schemas.RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    # Validate refresh token and get user ID
+    user_id = verify_refresh_token(request.refresh_token)
+
+    # Find user in database
+    user = db.query(models.User).filter(
+        models.User.id == user_id
+    ).first()
+
+    # Check if user exists
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user"
+        )
+
+    # Generate a new access token
+    new_access_token = create_access_token(user.id)
+
+    return {
+        "access_token": new_access_token,
+        "refresh_token": request.refresh_token,
+        "token_type": "bearer"
+    }
