@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr,Field
 
 
 class UserCreate(BaseModel):
@@ -13,10 +13,22 @@ class UserResponse(BaseModel):
     full_name: str
     email: EmailStr
     is_active: bool
+    role:str
 
     model_config = {
         "from_attributes": True
     }
+
+
+
+class UserUpdate(BaseModel):
+    full_name: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=50
+    )
+
+    email: EmailStr | None = None
 
 
 class UserLogin(BaseModel):

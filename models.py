@@ -20,3 +20,9 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
 
     is_active = Column(Boolean, default=True)
+
+    role = Column(
+    String(20),
+    nullable=False,
+    default="user"
+    )   

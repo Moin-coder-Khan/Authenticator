@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status,Query
 from sqlalchemy.orm import Session
 
 import models
@@ -7,7 +7,7 @@ import schemas
 
 from database import engine, Base, get_db
 from security import hash_password, verify_password
-from auth import create_access_token,get_current_user,create_refresh_token,verify_refresh_token
+from auth import create_access_token,get_current_user,create_refresh_token,verify_refresh_token,get_current_admin
 
 app = FastAPI(
     title="JWT Authentication API"
@@ -140,3 +140,69 @@ def refresh_access_token(
         "refresh_token": request.refresh_token,
         "token_type": "bearer"
     }
+
+
+@app.get("/admin/dashboard")
+def admin_dashboard(
+    current_admin: models.User = Depends(get_current_admin)
+):
+    return {
+        "message": "Welcome to the admin dashboard",
+        "admin_email": current_admin.email,
+        "role": current_admin.role
+    }
+
+@app.get(
+    "/admin/users",
+    response_model=list[schemas.UserResponse]
+)
+def get_all_users(
+    skip: int = Query(0,ge=0),
+    limit: int = Query(10,ge=1,le=100),
+    email: str | None = None,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_admin)
+):
+    query = db.query(models.User)
+
+    if email:
+        query = query.filter(
+            models.User.email.ilike(f"%{email}%")
+        )
+
+    users = (
+        query
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return users
+
+@app.patch("/users/me", response_model=schemas.UserResponse)
+def update_user_profile(
+    user_data: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if user_data.email is not None:
+        existing_user = db.query(models.User).filter(
+            models.User.email == user_data.email,
+            models.User.id != current_user.id
+        ).first()
+
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered"
+            )
+
+    update_data = user_data.model_dump(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(current_user, key, value)
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
